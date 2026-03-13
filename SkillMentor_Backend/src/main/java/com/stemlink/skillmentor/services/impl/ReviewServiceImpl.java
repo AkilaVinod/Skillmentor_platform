@@ -32,12 +32,12 @@ public class ReviewServiceImpl implements ReviewService {
     private final ModelMapper modelMapper;
 
     @Override
-    public ReviewResponseDTO createReview(ReviewRequestDTO request, String studentEmail) {
+    public ReviewResponseDTO createReview(ReviewRequestDTO request, String studentId) {
         Session session = sessionRepository.findById(request.getSessionId())
                 .orElseThrow(() -> new SkillMentorException("Session not found", HttpStatus.NOT_FOUND));
 
-        if (session.getStudent() == null || session.getStudent().getEmail() == null ||
-                !session.getStudent().getEmail().equalsIgnoreCase(studentEmail)) {
+        if (session.getStudent() == null || session.getStudent().getStudentId() == null ||
+                !session.getStudent().getStudentId().equals(studentId)) {
             throw new SkillMentorException("You can only review your own completed sessions", HttpStatus.FORBIDDEN);
         }
 
@@ -52,7 +52,7 @@ public class ReviewServiceImpl implements ReviewService {
         Mentor mentor = mentorRepository.findById(session.getMentor().getId())
                 .orElseThrow(() -> new SkillMentorException("Mentor not found", HttpStatus.NOT_FOUND));
 
-        Student student = studentRepository.findByEmail(studentEmail)
+        Student student = studentRepository.findByStudentId(studentId)
                 .orElseThrow(() -> new SkillMentorException("Student not found", HttpStatus.NOT_FOUND));
 
         Review review = new Review();
@@ -73,6 +73,52 @@ public class ReviewServiceImpl implements ReviewService {
             dto.setStudentName(saved.getStudent().getFirstName() + " " + saved.getStudent().getLastName());
         }
         return dto;
+    }
+
+    @Override
+    public ReviewResponseDTO updateReview(Long reviewId, ReviewRequestDTO request, String studentId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new SkillMentorException("Review not found", HttpStatus.NOT_FOUND));
+
+        if (review.getStudent() == null || review.getStudent().getStudentId() == null ||
+                !review.getStudent().getStudentId().equals(studentId)) {
+            throw new SkillMentorException("You can only update your own reviews", HttpStatus.FORBIDDEN);
+        }
+
+        if (review.getSession() == null || review.getSession().getSessionStatus() != SessionStatus.COMPLETED) {
+            throw new SkillMentorException("You can only update reviews for completed sessions", HttpStatus.BAD_REQUEST);
+        }
+
+        review.setRating(request.getRating());
+        review.setComment(request.getComment());
+
+        Review saved = reviewRepository.save(review);
+
+        ReviewResponseDTO dto = modelMapper.map(saved, ReviewResponseDTO.class);
+        if (saved.getSession() != null) {
+            dto.setSessionId(saved.getSession().getId());
+        }
+        if (saved.getMentor() != null) {
+            dto.setMentorId(saved.getMentor().getId());
+        }
+        if (saved.getStudent() != null) {
+            dto.setStudentId(saved.getStudent().getId());
+            dto.setStudentName(saved.getStudent().getFirstName() + " " + saved.getStudent().getLastName());
+        }
+        return dto;
+    }
+
+    @Override
+    public void deleteReview(Long reviewId, String studentId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new SkillMentorException("Review not found", HttpStatus.NOT_FOUND));
+
+        if (review.getStudent() == null || review.getStudent().getStudentId() == null ||
+                !review.getStudent().getStudentId().equals(studentId)) {
+            throw new SkillMentorException("You can only delete your own reviews", HttpStatus.FORBIDDEN);
+        }
+
+        reviewRepository.delete(review);
     }
 
     @Override

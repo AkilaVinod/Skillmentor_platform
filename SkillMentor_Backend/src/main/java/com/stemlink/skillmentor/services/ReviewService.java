@@ -7,6 +7,11 @@ import java.util.List;
 
 public interface ReviewService {
 
-    ReviewResponseDTO createReview(ReviewRequestDTO request, String studentEmail);
+    ReviewResponseDTO createReview(ReviewRequestDTO request, String studentId);
+
+    ReviewResponseDTO updateReview(Long reviewId, ReviewRequestDTO request, String studentId);
+
+    void deleteReview(Long reviewId, String studentId);
+
     List<ReviewResponseDTO> getReviewsByMentor(Long mentorId);
 }

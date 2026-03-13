@@ -26,8 +26,31 @@ public class ReviewController extends AbstractController {
             @Valid @RequestBody ReviewRequestDTO request,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        ReviewResponseDTO dto = reviewService.createReview(request, userPrincipal.getEmail());
+        ReviewResponseDTO dto = reviewService.createReview(request, userPrincipal.getId());
         return sendCreatedResponse(dto);
+    }
+
+    @PutMapping("{id}")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ReviewResponseDTO> updateReview(
+            @PathVariable Long id,
+            @Valid @RequestBody ReviewRequestDTO request,
+            Authentication authentication
+    ) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        ReviewResponseDTO dto = reviewService.updateReview(id, request, userPrincipal.getId());
+        return sendOkResponse(dto);
+    }
+
+    @DeleteMapping("{id}")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<Void> deleteReview(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        reviewService.deleteReview(id, userPrincipal.getId());
+        return sendNoContentResponse();
     }
 
     @GetMapping("/mentor/{mentorId}")

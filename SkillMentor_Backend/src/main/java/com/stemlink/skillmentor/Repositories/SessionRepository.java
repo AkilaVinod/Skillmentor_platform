@@ -1,7 +1,7 @@
 package com.stemlink.skillmentor.Repositories;
 
-import com.stemlink.skillmentor.entities.Session;
 import com.stemlink.skillmentor.constants.SessionStatus;
+import com.stemlink.skillmentor.entities.Session;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,5 +31,7 @@ public interface SessionRepository extends JpaRepository<Session,Long>, JpaSpeci
     List<Session> findByMentorIdAndSessionStatusIn(Long mentorId, Collection<SessionStatus> statuses);
 
     List<Session> findByStudentIdAndSessionStatusIn(Long studentId, Collection<SessionStatus> statuses);
+
+    List<Session> findBySessionStatus(SessionStatus status);
 
 }
