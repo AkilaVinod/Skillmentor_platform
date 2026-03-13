@@ -59,6 +59,28 @@ public class Session implements Serializable {
     @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus;
 
+    @Column(name = "payment_method", length = 50)
+    private String paymentMethod;
+
+    @Column(name = "payment_reference", length = 150)
+    private String paymentReference;
+
+    @Column(name = "payment_notes", columnDefinition = "TEXT")
+    private String paymentNotes;
+
+    @Column(name = "payment_proof_path")
+    private String paymentProofPath;
+
+    @Column(name = "payment_proof_file_name", length = 255)
+    private String paymentProofFileName;
+
+    @Column(name = "payment_submitted_at")
+    private Date paymentSubmittedAt;
+
+    @OneToOne(mappedBy = "session")
+    @JsonIgnore
+    private Review review;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Date createdAt;

@@ -2,9 +2,15 @@ package com.stemlink.skillmentor.controllers;
 
 
 
+import com.stemlink.skillmentor.Repositories.SessionRepository;
+import com.stemlink.skillmentor.Repositories.ReviewRepository;
 import com.stemlink.skillmentor.dto.request.MentorRequestDTO;
+import com.stemlink.skillmentor.dto.response.MentorAvailabilityResponseDTO;
+import com.stemlink.skillmentor.dto.response.MentorProvisionResponseDTO;
 import com.stemlink.skillmentor.dto.response.MentorResponseDTO;
+import com.stemlink.skillmentor.dto.response.SubjectResponseDTO;
 import com.stemlink.skillmentor.entities.Mentor;
+import com.stemlink.skillmentor.entities.Review;
 import com.stemlink.skillmentor.security.UserPrincipal;
 import com.stemlink.skillmentor.services.MentorService;
 import jakarta.validation.Valid;
@@ -19,7 +25,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.stemlink.skillmentor.constants.UserRoles.*;
 
@@ -32,6 +40,8 @@ public class MentorController extends AbstractController {
 
     private final MentorService mentorService;
     private final ModelMapper modelMapper;
+    private final SessionRepository sessionRepository;
+    private final ReviewRepository reviewRepository;
 
     @GetMapping
     public ResponseEntity<Page<MentorResponseDTO>> getAllMentors(
@@ -39,53 +49,71 @@ public class MentorController extends AbstractController {
             Pageable pageable) {
 
         Page<Mentor> mentors = mentorService.getAllMentors(name, pageable);
-        Page<MentorResponseDTO> dtoPage = mentors.map(
-                mentor -> modelMapper.map(mentor, MentorResponseDTO.class)
-        );
+        Page<MentorResponseDTO> dtoPage = mentors.map(mentor -> buildMentorResponseDTO(mentor, false));
         return sendOkResponse(dtoPage);
     }
 
     @GetMapping("{id}")
     public ResponseEntity<MentorResponseDTO> getMentorById(@PathVariable Long id) {
         Mentor mentor = mentorService.getMentorById(id);
-        MentorResponseDTO dto = modelMapper.map(mentor, MentorResponseDTO.class);
-        return sendOkResponse(dto);
+        return sendOkResponse(buildMentorResponseDTO(mentor, true));
     }
 
     @GetMapping("/profile/{mentorId}")
-    public ResponseEntity<MentorResponseDTO> getMentorByMentorId(
-            @PathVariable String mentorId) {
-
+    public ResponseEntity<MentorResponseDTO> getMentorByMentorId(@PathVariable String mentorId) {
         Mentor mentor = mentorService.getMentorByMentorId(mentorId);
+        return sendOkResponse(buildMentorResponseDTO(mentor, true));
+    }
 
+    private MentorResponseDTO buildMentorResponseDTO(Mentor mentor, boolean includeSubjects) {
         MentorResponseDTO dto = modelMapper.map(mentor, MentorResponseDTO.class);
 
-        return sendOkResponse(dto);
+        if (includeSubjects && mentor.getSubjects() != null) {
+            List<SubjectResponseDTO> subjectDTOs = mentor.getSubjects().stream().map(subject -> {
+                SubjectResponseDTO s = modelMapper.map(subject, SubjectResponseDTO.class);
+                s.setMentorId(mentor.getMentorId());
+                s.setMentorName(mentor.getFirstName() + " " + mentor.getLastName());
+                s.setEnrollmentCount(sessionRepository.countBySubjectId(subject.getId()));
+                return s;
+            }).collect(Collectors.toList());
+            dto.setSubjects(subjectDTOs);
+        } else {
+            dto.setSubjects(Collections.emptyList());
+        }
+
+        List<Review> reviews = reviewRepository.findByMentorId(mentor.getId());
+        int totalReviews = reviews.size();
+        double averageRating = reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0.0);
+        int positiveReviewPercentage = totalReviews == 0
+                ? 0
+                : (int) Math.round(
+                (reviews.stream().filter(review -> review.getRating() >= 4).count() * 100.0) / totalReviews
+        );
+
+        dto.setAverageRating(totalReviews == 0 ? null : averageRating);
+        dto.setTotalReviews(totalReviews);
+        dto.setTotalEnrollments((int) sessionRepository.countByMentorId(mentor.getId()));
+        dto.setTotalStudentsTaught((int) sessionRepository.countDistinctStudentsByMentorId(mentor.getId()));
+        dto.setPositiveReviewPercentage(positiveReviewPercentage);
+        dto.setAvailabilities(
+                mentor.getAvailabilities() == null
+                        ? Collections.emptyList()
+                        : mentor.getAvailabilities().stream()
+                        .map(availability -> modelMapper.map(availability, MentorAvailabilityResponseDTO.class))
+                        .toList()
+        );
+
+        return dto;
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('" + ROLE_ADMIN + "', '" + ROLE_MENTOR + "')")
-    public ResponseEntity<MentorResponseDTO> createMentor(@Valid @RequestBody MentorRequestDTO mentorRequestDTO, Authentication authentication) {
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-
-        Mentor mentor = modelMapper.map(mentorRequestDTO, Mentor.class);
-
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-
-        if (!isAdmin || mentorRequestDTO.getMentorId() == null) {
-            // MENTOR role, or ADMIN without explicit identity fields in body → use JWT claims
-            mentor.setMentorId(userPrincipal.getId());
-            mentor.setFirstName(userPrincipal.getFirstName());
-            mentor.setLastName(userPrincipal.getLastName());
-            mentor.setEmail(userPrincipal.getEmail());
-        }
-        // else: ADMIN provided mentorId (+ firstName/lastName/email) in body → ModelMapper already mapped them
-
-        Mentor createdMentor = mentorService.createNewMentor(mentor);
-        MentorResponseDTO mentorResponseDTO = modelMapper.map(createdMentor, MentorResponseDTO.class);
-
-        return sendCreatedResponse(mentorResponseDTO);
+    @PreAuthorize("hasRole('" + ROLE_ADMIN + "')")
+    public ResponseEntity<MentorProvisionResponseDTO> createMentor(@Valid @RequestBody MentorRequestDTO mentorRequestDTO) {
+        MentorProvisionResponseDTO responseDTO = mentorService.provisionMentor(mentorRequestDTO);
+        return sendCreatedResponse(responseDTO);
     }
 
     @PutMapping("{id}")

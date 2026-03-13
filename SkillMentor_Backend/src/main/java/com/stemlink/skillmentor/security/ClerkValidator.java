@@ -5,13 +5,18 @@ import com.auth0.jwk.JwkProvider;
 import com.auth0.jwk.UrlJwkProvider;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.net.URL;
 import java.security.PublicKey;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 
 @Slf4j
@@ -86,7 +91,25 @@ public class ClerkValidator implements TokenValidator {
             if (decodedJWT == null) {
                 return null;
             }
-            return decodedJWT.getClaim("roles").asList(String.class);
+            Set<String> roles = new LinkedHashSet<>();
+
+            addRoles(roles, decodedJWT.getClaim("roles").asList(String.class));
+
+            extractRoleFromMap(decodedJWT.getClaim("public_metadata"))
+                    .ifPresent(role -> roles.add(role.toUpperCase()));
+
+            extractRoleFromMap(decodedJWT.getClaim("publicMetadata"))
+                    .ifPresent(role -> roles.add(role.toUpperCase()));
+
+            Claim directRoleClaim = decodedJWT.getClaim("role");
+            if (!directRoleClaim.isNull()) {
+                String directRole = directRoleClaim.asString();
+                if (directRole != null && !directRole.isBlank()) {
+                    roles.add(directRole.toUpperCase());
+                }
+            }
+
+            return new ArrayList<>(roles);
         } catch (Exception e) {
             log.error("Error extracting roles: {}", e.getMessage());
             return null;
@@ -146,7 +169,7 @@ public class ClerkValidator implements TokenValidator {
 
             // Create algorithm and verify the token
             Algorithm algorithm = Algorithm.RSA256((java.security.interfaces.RSAPublicKey) publicKey, null);
-            JWT.require(algorithm).build().verify(token);
+            JWT.require(algorithm).acceptLeeway(60).build().verify(token);
 
             log.debug("Token signature verified successfully for kid: {}", kid);
             return true;
@@ -155,6 +178,36 @@ public class ClerkValidator implements TokenValidator {
             log.error("Signature verification failed for kid {}: {}", kid, e.getMessage());
             return false;
         }
+    }
+
+    private void addRoles(Set<String> roles, List<String> roleClaims) {
+        if (roleClaims == null) {
+            return;
+        }
+
+        for (String role : roleClaims) {
+            if (role != null && !role.isBlank()) {
+                roles.add(role.toUpperCase());
+            }
+        }
+    }
+
+    private java.util.Optional<String> extractRoleFromMap(Claim claim) {
+        if (claim == null || claim.isNull()) {
+            return java.util.Optional.empty();
+        }
+
+        Map<String, Object> metadata = claim.asMap();
+        if (metadata == null) {
+            return java.util.Optional.empty();
+        }
+
+        Object role = metadata.get("role");
+        if (role instanceof String roleString && !roleString.isBlank()) {
+            return java.util.Optional.of(roleString);
+        }
+
+        return java.util.Optional.empty();
     }
 
 }

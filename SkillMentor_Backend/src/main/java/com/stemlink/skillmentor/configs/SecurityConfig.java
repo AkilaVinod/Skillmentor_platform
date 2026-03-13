@@ -57,7 +57,16 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // ── Public read: Mentors ───────────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/api/v1/mentors", "/api/v1/mentors/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/mentors", "/api/v1/mentors/**").permitAll()
+
+                        // ── Public read: Reviews ───────────────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll()
+
+                        // ── Public read: Subjects ──────────────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/api/v1/subjects/**").permitAll()
+
+                        // ── User profile setup (any authenticated user, no role required) ──
+                        .requestMatchers("/api/v1/users/me", "/api/v1/users/setup").authenticated()
 
                         // ── Role-based routes ─────────────────────────────────────
                         // Only ADMIN can manage users

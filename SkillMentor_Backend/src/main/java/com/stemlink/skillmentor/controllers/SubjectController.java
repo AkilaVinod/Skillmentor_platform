@@ -1,5 +1,6 @@
 package com.stemlink.skillmentor.controllers;
 
+import com.stemlink.skillmentor.Repositories.SessionRepository;
 import com.stemlink.skillmentor.dto.request.SubjectRequestDTO;
 import com.stemlink.skillmentor.dto.response.SubjectResponseDTO;
 import com.stemlink.skillmentor.entities.Subject;
@@ -23,6 +24,7 @@ public class SubjectController extends AbstractController {
 
     private final ModelMapper modelMapper;
     private final SubjectService subjectService;
+    private final SessionRepository sessionRepository;
 
     @GetMapping
     public ResponseEntity<Page<SubjectResponseDTO>> getAllSubjects(Pageable pageable) {
@@ -33,6 +35,7 @@ public class SubjectController extends AbstractController {
             SubjectResponseDTO dto = modelMapper.map(subject, SubjectResponseDTO.class);
             dto.setMentorId(subject.getMentor().getMentorId());
             dto.setMentorName(subject.getMentor().getFirstName() + " " + subject.getMentor().getLastName());
+            dto.setEnrollmentCount(sessionRepository.countBySubjectId(subject.getId()));
             return dto;
         });
 
@@ -45,6 +48,7 @@ public class SubjectController extends AbstractController {
         SubjectResponseDTO subjectResponseDTO = modelMapper.map(subject, SubjectResponseDTO.class);
         subjectResponseDTO.setMentorId(subject.getMentor().getMentorId());
         subjectResponseDTO.setMentorName(subject.getMentor().getFirstName() + " " + subject.getMentor().getLastName());
+        subjectResponseDTO.setEnrollmentCount(sessionRepository.countBySubjectId(subject.getId()));
         return sendOkResponse(subjectResponseDTO);
     }
 
@@ -55,13 +59,14 @@ public class SubjectController extends AbstractController {
             SubjectResponseDTO subjectResponseDTO = modelMapper.map(subject, SubjectResponseDTO.class);
             subjectResponseDTO.setMentorId(subject.getMentor().getMentorId());
             subjectResponseDTO.setMentorName(subject.getMentor().getFirstName() + " " + subject.getMentor().getLastName());
+            subjectResponseDTO.setEnrollmentCount(sessionRepository.countBySubjectId(subject.getId()));
             return subjectResponseDTO;
         }).toList();
         return sendOkResponse(response);
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SubjectResponseDTO> createSubject(@Valid @RequestBody SubjectRequestDTO subjectDTO) {
         Subject subject = modelMapper.map(subjectDTO, Subject.class);
         Subject created = subjectService.addNewSubject(subjectDTO.getMentorId(), subject);
@@ -69,11 +74,12 @@ public class SubjectController extends AbstractController {
         SubjectResponseDTO subjectResponseDTO = modelMapper.map(created, SubjectResponseDTO.class);
         subjectResponseDTO.setMentorId(created.getMentor().getMentorId());
         subjectResponseDTO.setMentorName(created.getMentor().getFirstName() + " " + created.getMentor().getLastName());
+        subjectResponseDTO.setEnrollmentCount(sessionRepository.countBySubjectId(created.getId()));
         return sendCreatedResponse(subjectResponseDTO);
     }
 
     @PutMapping("{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SubjectResponseDTO> updateSubject(@PathVariable Long id, @RequestBody SubjectRequestDTO updatedSubjectDTO) {
         Subject subject = modelMapper.map(updatedSubjectDTO, Subject.class);
         Subject updated = subjectService.updateSubjectById(id, subject);
@@ -81,11 +87,12 @@ public class SubjectController extends AbstractController {
         SubjectResponseDTO subjectResponseDTO = modelMapper.map(updated, SubjectResponseDTO.class);
         subjectResponseDTO.setMentorId(updated.getMentor().getMentorId());
         subjectResponseDTO.setMentorName(updated.getMentor().getFirstName() + " " + updated.getMentor().getLastName());
+        subjectResponseDTO.setEnrollmentCount(sessionRepository.countBySubjectId(updated.getId()));
         return sendOkResponse(subjectResponseDTO);
     }
 
     @DeleteMapping("{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteSubject(@PathVariable Long id) {
         subjectService.deleteSubject(id);
         return sendNoContentResponse();

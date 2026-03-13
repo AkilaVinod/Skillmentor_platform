@@ -31,4 +31,8 @@ public class Review {
     @ManyToOne
     @JoinColumn(name = "student_id")
     private Student student;
+
+    @OneToOne
+    @JoinColumn(name = "session_id", unique = true)
+    private Session session;
 }

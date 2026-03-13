@@ -89,4 +89,9 @@ public class Mentor implements Serializable {
     @OneToMany(mappedBy = "mentor")
     private List<Session> sessions;
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "mentor", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("dayOfWeek ASC, startTime ASC")
+    private List<MentorAvailability> availabilities;
+
 }

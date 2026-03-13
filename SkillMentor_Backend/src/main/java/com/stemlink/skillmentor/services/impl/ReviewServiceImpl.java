@@ -2,13 +2,20 @@ package com.stemlink.skillmentor.services.impl;
 
 import com.stemlink.skillmentor.Repositories.MentorRepository;
 import com.stemlink.skillmentor.Repositories.ReviewRepository;
+import com.stemlink.skillmentor.Repositories.SessionRepository;
+import com.stemlink.skillmentor.Repositories.StudentRepository;
+import com.stemlink.skillmentor.constants.SessionStatus;
 import com.stemlink.skillmentor.dto.request.ReviewRequestDTO;
 import com.stemlink.skillmentor.dto.response.ReviewResponseDTO;
 import com.stemlink.skillmentor.entities.Mentor;
 import com.stemlink.skillmentor.entities.Review;
+import com.stemlink.skillmentor.entities.Session;
+import com.stemlink.skillmentor.entities.Student;
+import com.stemlink.skillmentor.exceptions.SkillMentorException;
 import com.stemlink.skillmentor.services.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -20,23 +27,52 @@ public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final MentorRepository mentorRepository;
+    private final StudentRepository studentRepository;
+    private final SessionRepository sessionRepository;
     private final ModelMapper modelMapper;
 
     @Override
-    public ReviewResponseDTO createReview(ReviewRequestDTO request) {
+    public ReviewResponseDTO createReview(ReviewRequestDTO request, String studentEmail) {
+        Session session = sessionRepository.findById(request.getSessionId())
+                .orElseThrow(() -> new SkillMentorException("Session not found", HttpStatus.NOT_FOUND));
 
-        Mentor mentor = mentorRepository.findById(request.getMentorId())
-                .orElseThrow(() -> new RuntimeException("Mentor not found"));
+        if (session.getStudent() == null || session.getStudent().getEmail() == null ||
+                !session.getStudent().getEmail().equalsIgnoreCase(studentEmail)) {
+            throw new SkillMentorException("You can only review your own completed sessions", HttpStatus.FORBIDDEN);
+        }
+
+        if (session.getSessionStatus() != SessionStatus.COMPLETED) {
+            throw new SkillMentorException("You can only review completed sessions", HttpStatus.BAD_REQUEST);
+        }
+
+        reviewRepository.findBySessionId(session.getId()).ifPresent(existing -> {
+            throw new SkillMentorException("A review has already been submitted for this session", HttpStatus.CONFLICT);
+        });
+
+        Mentor mentor = mentorRepository.findById(session.getMentor().getId())
+                .orElseThrow(() -> new SkillMentorException("Mentor not found", HttpStatus.NOT_FOUND));
+
+        Student student = studentRepository.findByEmail(studentEmail)
+                .orElseThrow(() -> new SkillMentorException("Student not found", HttpStatus.NOT_FOUND));
 
         Review review = new Review();
         review.setRating(request.getRating());
         review.setComment(request.getComment());
         review.setMentor(mentor);
+        review.setStudent(student);
+        review.setSession(session);
         review.setCreatedAt(LocalDateTime.now());
 
         Review saved = reviewRepository.save(review);
 
-        return modelMapper.map(saved, ReviewResponseDTO.class);
+        ReviewResponseDTO dto = modelMapper.map(saved, ReviewResponseDTO.class);
+        dto.setSessionId(saved.getSession().getId());
+        dto.setMentorId(saved.getMentor().getId());
+        if (saved.getStudent() != null) {
+            dto.setStudentId(saved.getStudent().getId());
+            dto.setStudentName(saved.getStudent().getFirstName() + " " + saved.getStudent().getLastName());
+        }
+        return dto;
     }
 
     @Override
@@ -47,9 +83,20 @@ public class ReviewServiceImpl implements ReviewService {
 
         List<Review> reviews = reviewRepository.findByMentorId(mentor.getId());
 
-        return reviews.stream()
-                .map(review -> modelMapper.map(review, ReviewResponseDTO.class))
-                .toList();
+        return reviews.stream().map(review -> {
+            ReviewResponseDTO dto = modelMapper.map(review, ReviewResponseDTO.class);
+            if (review.getSession() != null) {
+                dto.setSessionId(review.getSession().getId());
+            }
+            if (review.getMentor() != null) {
+                dto.setMentorId(review.getMentor().getId());
+            }
+            if (review.getStudent() != null) {
+                dto.setStudentId(review.getStudent().getId());
+                dto.setStudentName(review.getStudent().getFirstName() + " " + review.getStudent().getLastName());
+            }
+            return dto;
+        }).toList();
     }
 
 }

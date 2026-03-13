@@ -15,6 +15,8 @@ public class SubjectResponseDTO {
     private String mentorId;
     private String mentorName;   // combine first + last
 
+    private Long enrollmentCount;
+
     private Date createdAt;
     private Date updatedAt;
 }

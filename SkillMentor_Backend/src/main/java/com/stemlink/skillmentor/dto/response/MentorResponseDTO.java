@@ -1,9 +1,9 @@
 package com.stemlink.skillmentor.dto.response;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 
 @Data
@@ -25,10 +25,16 @@ public class MentorResponseDTO {
     private String bio;
     private String profileImageUrl;
 
-    private Integer positiveReviews;
+    private Double averageRating;
+    private Integer totalReviews;
     private Integer totalEnrollments;
+    private Integer totalStudentsTaught;
+    private Integer positiveReviewPercentage;
     private Boolean isCertified;
     private String startYear;
+
+    private List<SubjectResponseDTO> subjects;
+    private List<MentorAvailabilityResponseDTO> availabilities;
 
     private Date createdAt;
     private Date updatedAt;
